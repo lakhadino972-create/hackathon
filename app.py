@@ -1,20 +1,3 @@
-"""
-app.py
-------
-AI Smart Civic Services — Web Frontend (Streamlit)
-
-This connects directly to the SAME backend you already built and tested:
-  - database.py   (SQLite storage, queries, statistics)
-  - classifier.py (AI classification using the trained model)
-
-No changes were made to those files. This file just replaces the console
-menu (project.py) with a browser-based interface, using the exact same
-functions underneath.
-
-Run with:
-    python -m streamlit run app.py
-"""
-
 import streamlit as st
 import pandas as pd
 
@@ -127,6 +110,8 @@ with tab3:
         st.dataframe(df, use_container_width=True, hide_index=True)
 
 # ===================== TAB 4: STATISTICS =====================
+# ===================== TAB 4: STATISTICS =====================
+# ===================== TAB 4: STATISTICS =====================
 with tab4:
     st.subheader("Complaint Statistics")
 
@@ -134,43 +119,88 @@ with tab4:
     if total == 0:
         st.info("No complaints yet — nothing to analyze.")
     else:
+        import matplotlib.pyplot as plt
+
         col1, col2 = st.columns(2)
 
+        # ---- Pie chart: Category distribution ----
         with col1:
-            st.markdown("**By Category**")
+            st.markdown("**What kind of problems are people reporting?**")
             category_counts = get_category_counts()
-            cat_df = pd.DataFrame(category_counts.items(), columns=["Category", "Count"])
-            st.bar_chart(cat_df.set_index("Category"))
+            fig1, ax1 = plt.subplots()
+            ax1.pie(
+                category_counts.values(),
+                labels=category_counts.keys(),
+                autopct="%1.0f%%",
+                startangle=90,
+            )
+            ax1.axis("equal")
+            st.pyplot(fig1)
 
+        # ---- Pie chart: Status distribution ----
         with col2:
-            st.markdown("**By Status**")
+            st.markdown("**Where are complaints in the process?**")
             status_counts = get_status_counts()
-            status_df = pd.DataFrame(status_counts.items(), columns=["Status", "Count"])
-            st.bar_chart(status_df.set_index("Status"))
+            fig2, ax2 = plt.subplots()
+            colors = {"Open": "#ff6b6b", "Assigned": "#feca57", "In Progress": "#54a0ff", "Resolved": "#1dd1a1"}
+            pie_colors = [colors.get(s, "#cccccc") for s in status_counts.keys()]
+            ax2.pie(
+                status_counts.values(),
+                labels=status_counts.keys(),
+                autopct="%1.0f%%",
+                startangle=90,
+                colors=pie_colors,
+            )
+            ax2.axis("equal")
+            st.pyplot(fig2)
 
         st.divider()
-        st.markdown("**Resolution Time (hours)**")
 
+        # ---- Simple headline numbers ----
+        most_common_category = category_counts.most_common(1)[0]
+        resolved_count = status_counts.get("Resolved", 0)
+        open_count = total - resolved_count
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Complaints", total)
+        c2.metric("Most Common Problem", most_common_category[0])
+        c3.metric("Still Open/In Progress", open_count)
+
+        st.divider()
+
+        # ---- Resolution time, explained in plain language ----
+        st.markdown("**How long does it take to resolve a complaint?**")
         resolution_hours = get_resolution_times()
+
         if len(resolution_hours) == 0:
-            st.info("No resolved complaints yet — nothing to calculate.")
+            st.info("No complaints have been marked 'Resolved' yet, so there's no timing data.")
         else:
             import statistics as stats_module
 
             mean_val = stats_module.mean(resolution_hours)
             median_val = stats_module.median(resolution_hours)
-            min_val = min(resolution_hours)
-            max_val = max(resolution_hours)
 
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Mean", f"{mean_val:.2f} hrs")
-            c2.metric("Median", f"{median_val:.2f} hrs")
-            c3.metric("Min", f"{min_val:.2f} hrs")
-            c4.metric("Max", f"{max_val:.2f} hrs")
+            # Convert to a friendlier unit if the numbers are small/large
+            def friendly_time(hours):
+                if hours < 1:
+                    return f"{hours * 60:.0f} minutes"
+                elif hours < 24:
+                    return f"{hours:.1f} hours"
+                else:
+                    return f"{hours / 24:.1f} days"
 
-            if len(resolution_hours) > 1:
-                stdev_val = stats_module.stdev(resolution_hours)
-                variance_val = stats_module.variance(resolution_hours)
-                c5, c6 = st.columns(2)
-                c5.metric("Std Deviation", f"{stdev_val:.2f} hrs")
-                c6.metric("Variance", f"{variance_val:.2f}")
+            st.write(f"On average, a complaint takes **{friendly_time(mean_val)}** to resolve.")
+            st.write(f"Half of all resolved complaints were closed within **{friendly_time(median_val)}**.")
+
+            with st.expander("See detailed numbers (min, max, std deviation, variance)"):
+                min_val = min(resolution_hours)
+                max_val = max(resolution_hours)
+                c1, c2 = st.columns(2)
+                c1.metric("Fastest resolution", friendly_time(min_val))
+                c2.metric("Slowest resolution", friendly_time(max_val))
+
+                if len(resolution_hours) > 1:
+                    stdev_val = stats_module.stdev(resolution_hours)
+                    variance_val = stats_module.variance(resolution_hours)
+                    st.write(f"Standard Deviation: {stdev_val:.2f} hours (how spread out resolution times are)")
+                    st.write(f"Variance: {variance_val:.2f}")
